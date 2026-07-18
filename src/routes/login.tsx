@@ -1,9 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Brain, Github, Mail } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { signIn } from "@/lib/store";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -14,6 +17,28 @@ function GoogleIcon() {
 }
 
 function LoginPage() {
+  const nav = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) { toast.error("Enter email and password"); return; }
+    setLoading(true);
+    const r = signIn(email.trim(), password);
+    setLoading(false);
+    if (!r.ok) { toast.error(r.error); return; }
+    toast.success("Welcome back!");
+    nav({ to: "/dashboard" });
+  };
+
+  const demo = () => {
+    signIn("demo@edumind.ai", "demo1234");
+    toast.success("Signed in as demo user");
+    nav({ to: "/dashboard" });
+  };
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="relative hidden overflow-hidden lg:block">
@@ -38,28 +63,31 @@ function LoginPage() {
           <p className="mt-1 text-sm text-muted-foreground">Welcome back. Enter your details.</p>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <Button variant="outline" className="glass"><GoogleIcon /> Google</Button>
-            <Button variant="outline" className="glass"><Github className="h-4 w-4" /> GitHub</Button>
+            <Button type="button" variant="outline" className="glass" onClick={demo}><GoogleIcon /> Google</Button>
+            <Button type="button" variant="outline" className="glass" onClick={demo}><Github className="h-4 w-4" /> GitHub</Button>
           </div>
 
           <div className="my-6 flex items-center gap-4 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" /> OR <div className="h-px flex-1 bg-border" />
           </div>
 
-          <form className="space-y-4" onSubmit={(e)=>e.preventDefault()}>
+          <form className="space-y-4" onSubmit={submit}>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@edumind.ai" className="mt-1.5" />
+              <Input id="email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@edumind.ai" className="mt-1.5" />
             </div>
             <div>
               <div className="flex justify-between">
                 <Label htmlFor="password">Password</Label>
                 <Link to="/forgot-password" className="text-xs text-accent hover:underline">Forgot?</Link>
               </div>
-              <Input id="password" type="password" placeholder="••••••••" className="mt-1.5" />
+              <Input id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="••••••••" className="mt-1.5" />
             </div>
-            <Button type="submit" className="w-full gradient-primary text-primary-foreground">
-              <Mail className="mr-2 h-4 w-4" /> Sign in with Email
+            <Button type="submit" disabled={loading} className="w-full gradient-primary text-primary-foreground">
+              <Mail className="mr-2 h-4 w-4" /> {loading ? "Signing in…" : "Sign in with Email"}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full text-xs text-muted-foreground" onClick={demo}>
+              Try demo account
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
