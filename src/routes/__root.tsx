@@ -88,6 +88,15 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("edu.settings");
+      if (raw) {
+        const s = JSON.parse(raw);
+        document.documentElement.classList.toggle("light", !s.dark);
+      }
+    } catch { /* ignore */ }
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
@@ -95,3 +104,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
