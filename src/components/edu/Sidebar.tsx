@@ -1,9 +1,11 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Bot, MessageSquare, BookOpen, GraduationCap,
   BarChart3, User, Settings, Shield, Sparkles, Brain, LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocalStorage, K, defaultProfile, signOut, type Profile, type Session } from "@/lib/store";
+import { toast } from "sonner";
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -20,6 +22,20 @@ const items = [
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const nav = useNavigate();
+  const [profile] = useLocalStorage<Profile>(K.profile, defaultProfile());
+  const [session] = useLocalStorage<Session>(K.auth, null);
+
+  const displayName = session?.name ?? profile.name;
+  const initials = displayName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+
+  const doLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    signOut();
+    toast.success("Signed out");
+    nav({ to: "/login" });
+  };
+
   return (
     <aside className="glass sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 flex-col rounded-2xl p-4 lg:flex">
       <Link to="/" className="mb-6 flex items-center gap-2 px-2">
@@ -48,12 +64,12 @@ export function AppSidebar() {
       </nav>
       <div className="mt-4 rounded-xl border border-border/50 bg-background/40 p-3">
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full gradient-hero text-xs font-bold text-white">AK</div>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full gradient-hero text-xs font-bold text-white">{initials || "AK"}</div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Alex Kumar</p>
-            <p className="truncate text-xs text-muted-foreground">Pro Student</p>
+            <p className="truncate text-sm font-medium">{displayName}</p>
+            <p className="truncate text-xs text-muted-foreground">{session ? "Pro Student" : "Guest"}</p>
           </div>
-          <Link to="/login" className="text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /></Link>
+          <button onClick={doLogout} title="Sign out" className="text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /></button>
         </div>
       </div>
     </aside>

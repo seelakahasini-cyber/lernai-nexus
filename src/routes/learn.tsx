@@ -4,17 +4,12 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Target, Clock, CheckCircle2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Sparkles, Target, Clock, CheckCircle2, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { useLocalStorage, K, defaultGoals, defaultSkills, type Goal, type Skill } from "@/lib/store";
 
 export const Route = createFileRoute("/learn")({ component: Learn });
-
-const skills = [
-  { name: "Data Structures", level: 78 },
-  { name: "Algorithms", level: 62 },
-  { name: "System Design", level: 34 },
-  { name: "SQL & Databases", level: 88 },
-  { name: "Machine Learning", level: 51 },
-];
 
 const roadmap = [
   { title: "Foundations", desc: "Master arrays, strings and hashmaps", eta: "1 week", done: true },
@@ -32,6 +27,22 @@ const topics = [
 ];
 
 function Learn() {
+  const [goals, setGoals] = useLocalStorage<Goal[]>(K.goals, defaultGoals);
+  const [skills, setSkills] = useLocalStorage<Skill[]>(K.skills, defaultSkills);
+  const [editing, setEditing] = useState(false);
+  const [newGoal, setNewGoal] = useState("");
+
+  const addGoal = () => {
+    const t = newGoal.trim(); if (!t) return;
+    setGoals((g) => [...g, { id: crypto.randomUUID(), text: t, done: false }]);
+    setNewGoal("");
+  };
+  const toggleGoal = (id: string) => setGoals((g) => g.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
+  const removeGoal = (id: string) => setGoals((g) => g.filter((x) => x.id !== id));
+  const practice = (name: string) => {
+    setSkills((sk) => sk.map((s) => (s.name === name ? { ...s, level: Math.min(100, s.level + 5) } : s)));
+  };
+
   return (
     <AppShell title="Personalized Learning" subtitle="A roadmap built for you, updated in real time.">
       <div className="grid gap-5 lg:grid-cols-3">
@@ -68,9 +79,12 @@ function Learn() {
                 <div key={s.name}>
                   <div className="mb-1 flex justify-between text-sm">
                     <span>{s.name}</span>
-                    <span className="text-muted-foreground">{s.level}%</span>
+                    <button onClick={()=>practice(s.name)} className="text-xs text-accent hover:underline">+5% practice</button>
                   </div>
-                  <Progress value={s.level} className="h-2" />
+                  <div className="flex items-center gap-2">
+                    <Progress value={s.level} className="h-2 flex-1" />
+                    <span className="text-xs text-muted-foreground w-10 text-right">{s.level}%</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -81,12 +95,32 @@ function Learn() {
               <Target className="h-4 w-4 text-accent" />
               <h3 className="font-display text-sm font-semibold uppercase tracking-wider">Learning Goals</h3>
             </div>
-            <ul className="mt-3 space-y-2 text-sm">
-              <li>• Solve 200 DSA problems this quarter</li>
-              <li>• Complete ML specialization</li>
-              <li>• Ship 2 portfolio projects</li>
-            </ul>
-            <Button className="mt-4 w-full gradient-primary text-primary-foreground">Edit goals</Button>
+            {editing ? (
+              <div className="mt-3 space-y-2">
+                {goals.map((g) => (
+                  <div key={g.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={g.done} onChange={()=>toggleGoal(g.id)} className="h-4 w-4 accent-primary" />
+                    <span className={`flex-1 text-sm ${g.done ? "line-through text-muted-foreground" : ""}`}>{g.text}</span>
+                    <button onClick={()=>removeGoal(g.id)}><X className="h-3 w-3 text-muted-foreground hover:text-destructive" /></button>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-2">
+                  <Input value={newGoal} onChange={(e)=>setNewGoal(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&addGoal()} placeholder="New goal…" />
+                  <Button size="icon" onClick={addGoal} className="gradient-primary text-primary-foreground"><Plus className="h-4 w-4" /></Button>
+                </div>
+                <Button className="w-full" variant="outline" onClick={()=>setEditing(false)}>Done</Button>
+              </div>
+            ) : (
+              <>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {goals.map((g) => (
+                    <li key={g.id} className={g.done ? "line-through text-muted-foreground" : ""}>• {g.text}</li>
+                  ))}
+                  {goals.length === 0 && <li className="text-muted-foreground">No goals yet</li>}
+                </ul>
+                <Button className="mt-4 w-full gradient-primary text-primary-foreground" onClick={()=>setEditing(true)}>Edit goals</Button>
+              </>
+            )}
           </Card>
         </div>
       </div>

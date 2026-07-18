@@ -5,34 +5,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Search, Star, PlayCircle } from "lucide-react";
-import { useState } from "react";
+import { Search, Star, PlayCircle, Check } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useLocalStorage, K, toggleEnroll, bumpCourseProgress, type Enrollment } from "@/lib/store";
 
 export const Route = createFileRoute("/courses")({ component: Courses });
 
 const cats = ["All", "Programming", "Data Science", "Design", "Math", "Languages"];
 const diffs = ["All Levels", "Beginner", "Intermediate", "Advanced"];
 
-const courses = [
-  { t: "Advanced Python Mastery", cat: "Programming", diff: "Advanced", rating: 4.9, students: 12400, progress: 62, instructor: "Dr. Lin Wei" },
-  { t: "Machine Learning A-Z", cat: "Data Science", diff: "Intermediate", rating: 4.8, students: 34210, progress: 81, instructor: "Prof. Ana Ruiz" },
-  { t: "System Design Fundamentals", cat: "Programming", diff: "Advanced", rating: 4.7, students: 8900, progress: 34, instructor: "Marcus Ford" },
-  { t: "SQL for Analysts", cat: "Data Science", diff: "Beginner", rating: 4.9, students: 22100, progress: 0, instructor: "Priya Shah" },
-  { t: "UI/UX Design Studio", cat: "Design", diff: "Intermediate", rating: 4.6, students: 5600, progress: 22, instructor: "Kenji Watanabe" },
-  { t: "Linear Algebra for ML", cat: "Math", diff: "Intermediate", rating: 4.8, students: 9800, progress: 0, instructor: "Dr. Omar Bakr" },
-  { t: "Spanish Conversation", cat: "Languages", diff: "Beginner", rating: 4.9, students: 18300, progress: 45, instructor: "Sofia Perez" },
-  { t: "Deep Learning Pro", cat: "Data Science", diff: "Advanced", rating: 4.9, students: 15700, progress: 0, instructor: "Yuki Tanaka" },
+const catalog = [
+  { id: "c1", t: "Advanced Python Mastery", cat: "Programming", diff: "Advanced", rating: 4.9, students: 12400, instructor: "Dr. Lin Wei" },
+  { id: "c2", t: "Machine Learning A-Z", cat: "Data Science", diff: "Intermediate", rating: 4.8, students: 34210, instructor: "Prof. Ana Ruiz" },
+  { id: "c3", t: "System Design Fundamentals", cat: "Programming", diff: "Advanced", rating: 4.7, students: 8900, instructor: "Marcus Ford" },
+  { id: "c4", t: "SQL for Analysts", cat: "Data Science", diff: "Beginner", rating: 4.9, students: 22100, instructor: "Priya Shah" },
+  { id: "c5", t: "UI/UX Design Studio", cat: "Design", diff: "Intermediate", rating: 4.6, students: 5600, instructor: "Kenji Watanabe" },
+  { id: "c6", t: "Linear Algebra for ML", cat: "Math", diff: "Intermediate", rating: 4.8, students: 9800, instructor: "Dr. Omar Bakr" },
+  { id: "c7", t: "Spanish Conversation", cat: "Languages", diff: "Beginner", rating: 4.9, students: 18300, instructor: "Sofia Perez" },
+  { id: "c8", t: "Deep Learning Pro", cat: "Data Science", diff: "Advanced", rating: 4.9, students: 15700, instructor: "Yuki Tanaka" },
 ];
 
 function Courses() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [diff, setDiff] = useState("All Levels");
-  const filtered = courses.filter((c) =>
+  const [enrollments] = useLocalStorage<Enrollment[]>(K.enrollments, []);
+  const map = useMemo(() => Object.fromEntries(enrollments.map((e) => [e.courseId, e])), [enrollments]);
+
+  const filtered = catalog.filter((c) =>
     (cat === "All" || c.cat === cat) &&
     (diff === "All Levels" || c.diff === diff) &&
     c.t.toLowerCase().includes(q.toLowerCase())
   );
+
+  const onEnroll = (c: typeof catalog[number]) => {
+    toggleEnroll(c.id);
+    toast.success(map[c.id] ? `Unenrolled from ${c.t}` : `Enrolled in ${c.t}`);
+  };
+  const onResume = (c: typeof catalog[number]) => {
+    bumpCourseProgress(c.id, 10);
+    toast.success("+10% progress");
+  };
 
   return (
     <AppShell title="Course Library" subtitle="Curated learning tracks across every subject.">
@@ -55,32 +69,42 @@ function Courses() {
       </Card>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filtered.map((c) => (
-          <Card key={c.t} className="glass card-hover overflow-hidden p-0">
-            <div className="relative h-32" style={{background:"var(--gradient-hero)"}}>
-              <div className="absolute inset-0 grid place-items-center">
-                <PlayCircle className="h-10 w-10 text-white/90" />
+        {filtered.map((c) => {
+          const enr = map[c.id];
+          const progress = enr?.progress ?? 0;
+          return (
+            <Card key={c.id} className="glass card-hover overflow-hidden p-0">
+              <div className="relative h-32" style={{background:"var(--gradient-hero)"}}>
+                <div className="absolute inset-0 grid place-items-center">
+                  <PlayCircle className="h-10 w-10 text-white/90" />
+                </div>
+                <Badge className="absolute left-3 top-3 bg-black/40 text-white backdrop-blur">{c.diff}</Badge>
+                {enr && <Badge className="absolute right-3 top-3 gradient-primary text-primary-foreground gap-1"><Check className="h-3 w-3" /> Enrolled</Badge>}
               </div>
-              <Badge className="absolute left-3 top-3 bg-black/40 text-white backdrop-blur">{c.diff}</Badge>
-            </div>
-            <div className="p-5">
-              <div className="mb-1 text-xs text-muted-foreground">{c.cat}</div>
-              <h4 className="line-clamp-2 font-semibold">{c.t}</h4>
-              <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-accent text-accent" /> {c.rating}</span>
-                <span>{(c.students/1000).toFixed(1)}k students</span>
+              <div className="p-5">
+                <div className="mb-1 text-xs text-muted-foreground">{c.cat}</div>
+                <h4 className="line-clamp-2 font-semibold">{c.t}</h4>
+                <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-accent text-accent" /> {c.rating}</span>
+                  <span>{(c.students/1000).toFixed(1)}k students</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs">
+                  <div className="grid h-6 w-6 place-items-center rounded-full gradient-primary text-[10px] font-bold text-white">{c.instructor.split(" ").map(w=>w[0]).slice(0,2).join("")}</div>
+                  <span className="text-muted-foreground">{c.instructor}</span>
+                </div>
+                {progress > 0 && <Progress value={progress} className="mt-3 h-1.5" />}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" onClick={()=>onEnroll(c)}>
+                    {enr ? "Unenroll" : "Enroll"}
+                  </Button>
+                  <Button size="sm" onClick={()=>onResume(c)} className="gradient-primary text-primary-foreground">
+                    {progress > 0 ? "Continue" : "Start"}
+                  </Button>
+                </div>
               </div>
-              <div className="mt-3 flex items-center gap-2 text-xs">
-                <div className="grid h-6 w-6 place-items-center rounded-full gradient-primary text-[10px] font-bold text-white">{c.instructor.split(" ").map(w=>w[0]).slice(0,2).join("")}</div>
-                <span className="text-muted-foreground">{c.instructor}</span>
-              </div>
-              {c.progress > 0 && <Progress value={c.progress} className="mt-3 h-1.5" />}
-              <Button size="sm" className="mt-4 w-full gradient-primary text-primary-foreground">
-                {c.progress > 0 ? "Continue Learning" : "Start Course"}
-              </Button>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </AppShell>
   );

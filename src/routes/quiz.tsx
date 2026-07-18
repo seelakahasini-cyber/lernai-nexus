@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle2, XCircle, Trophy, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
+import { saveQuizAttempt, useLocalStorage, K, type QuizAttempt } from "@/lib/store";
 
 export const Route = createFileRoute("/quiz")({ component: Quiz });
 
@@ -23,6 +24,8 @@ function Quiz() {
   const [answers, setAnswers] = useState<number[]>([]);
   const [time, setTime] = useState(60);
   const [done, setDone] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [attempts] = useLocalStorage<QuizAttempt[]>(K.quizAttempts, []);
 
   useEffect(() => {
     if (done) return;
@@ -40,6 +43,24 @@ function Quiz() {
   };
 
   const score = answers.reduce((s, a, idx) => s + (a === questions[idx].correct ? 1 : 0), 0);
+
+  // persist attempt exactly once when finishing
+  useEffect(() => {
+    if (done && !saved) {
+      saveQuizAttempt({
+        topic: "DSA Adaptive",
+        score,
+        total: questions.length,
+        timeSeconds: 60 - time,
+        xpEarned: score * 50,
+      });
+      setSaved(true);
+    }
+  }, [done, saved, score, time]);
+
+  const reset = () => {
+    setI(0); setAnswers([]); setDone(false); setTime(60); setSelected(null); setSaved(false);
+  };
 
   if (done) {
     const pct = Math.round((score / questions.length) * 100);
@@ -64,9 +85,12 @@ function Quiz() {
               </div>
             ))}
           </div>
-          <Button onClick={()=>{setI(0);setAnswers([]);setDone(false);setTime(60);}} className="mt-8 gradient-primary text-primary-foreground">
+          <Button onClick={reset} className="mt-8 gradient-primary text-primary-foreground">
             <RotateCcw className="mr-2 h-4 w-4" /> Try again
           </Button>
+          {attempts.length > 1 && (
+            <p className="mt-4 text-xs text-muted-foreground">{attempts.length} attempts saved locally</p>
+          )}
         </Card>
       </AppShell>
     );

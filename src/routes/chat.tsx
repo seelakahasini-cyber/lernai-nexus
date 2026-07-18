@@ -4,17 +4,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Send, Mic, Paperclip, Plus, Sparkles, Bot, User as UserIcon } from "lucide-react";
-import { useState } from "react";
+import { Send, Mic, Paperclip, Plus, Sparkles, Bot, User as UserIcon, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocalStorage, K, type ChatThread, type ChatMessage } from "@/lib/store";
 
 export const Route = createFileRoute("/chat")({ component: Chat });
-
-const history = [
-  { title: "Explain recursion with examples", when: "2h ago" },
-  { title: "Study plan for finals", when: "Yesterday" },
-  { title: "Python decorators deep dive", when: "3 days ago" },
-  { title: "Big-O for common structures", when: "Last week" },
-];
 
 const suggested = [
   "Give me a 20-min plan on gradient descent",
@@ -23,45 +17,107 @@ const suggested = [
   "Career paths for a data science student",
 ];
 
-type Msg = { role: "user" | "ai"; text: string };
+const canned = (q: string) => {
+  const s = q.toLowerCase();
+  if (s.includes("plan")) return "Here's a focused plan:\n1. Warm-up (5m) — recall key terms\n2. Concept (10m) — walk through 2 examples\n3. Practice (5m) — 3 quick problems\nWant me to expand any step?";
+  if (s.includes("quiz")) return "Great — I'll quiz you. First question: what does the SELECT clause return, and how does it differ from PROJECT in relational algebra?";
+  if (s.includes("summar")) return "Summary: the chapter covers three ideas — (1) representation, (2) transformation, (3) evaluation — with examples in Python. Want the 60-second version or the deep dive?";
+  if (s.includes("career") || s.includes("path")) return "Common paths: Data Analyst → Data Scientist → ML Engineer, or Research Scientist. Which sounds most interesting? I can map the next 3 skills for you.";
+  return "Great question! Here's a concise breakdown you can follow, with a short example, and I'll adapt as we go. What would you like to focus on first?";
+};
+
+function relative(t: number) {
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+const newThread = (): ChatThread => ({
+  id: crypto.randomUUID(),
+  title: "New chat",
+  messages: [{ role: "ai", text: "Hi! I'm your Tutor Agent. What would you like to learn today?", at: Date.now() }],
+  updatedAt: Date.now(),
+});
 
 function Chat() {
-  const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "ai", text: "Hi Alex! I'm your **Tutor Agent**. What would you like to learn today?" },
-  ]);
+  const [threads, setThreads] = useLocalStorage<ChatThread[]>(K.chats, []);
+  const [activeId, setActiveId] = useLocalStorage<string | null>(K.activeChat, null);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
 
+  // ensure at least one thread exists
+  useEffect(() => {
+    if (threads.length === 0) {
+      const t = newThread();
+      setThreads([t]);
+      setActiveId(t.id);
+    } else if (!activeId || !threads.some((t) => t.id === activeId)) {
+      setActiveId(threads[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads.length]);
+
+  const active = useMemo(() => threads.find((t) => t.id === activeId) ?? threads[0], [threads, activeId]);
+
+  const updateActive = (updater: (t: ChatThread) => ChatThread) => {
+    setThreads((list) => list.map((t) => (t.id === active?.id ? updater(t) : t)));
+  };
+
   const send = (text?: string) => {
     const t = (text ?? input).trim();
-    if (!t) return;
-    setMsgs((m) => [...m, { role: "user", text: t }]);
+    if (!t || !active) return;
+    const userMsg: ChatMessage = { role: "user", text: t, at: Date.now() };
+    updateActive((th) => ({
+      ...th,
+      title: th.messages.length <= 1 ? t.slice(0, 40) : th.title,
+      messages: [...th.messages, userMsg],
+      updatedAt: Date.now(),
+    }));
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      setMsgs((m) => [...m, { role: "ai", text: "Great question! Here's a concise breakdown with an example you can follow along with…" }]);
+      const aiMsg: ChatMessage = { role: "ai", text: canned(t), at: Date.now() };
+      updateActive((th) => ({ ...th, messages: [...th.messages, aiMsg], updatedAt: Date.now() }));
       setTyping(false);
-    }, 1400);
+    }, 900);
   };
+
+  const startNew = () => {
+    const t = newThread();
+    setThreads((list) => [t, ...list]);
+    setActiveId(t.id);
+  };
+
+  const removeThread = (id: string) => {
+    setThreads((list) => list.filter((t) => t.id !== id));
+    if (id === activeId) setActiveId(null);
+  };
+
+  if (!active) return null;
 
   return (
     <AppShell>
       <div className="grid h-[calc(100vh-8rem)] gap-4 lg:grid-cols-[280px_1fr]">
-        {/* Sidebar */}
         <Card className="glass hidden flex-col p-4 lg:flex">
-          <Button className="gradient-primary text-primary-foreground"><Plus className="mr-1 h-4 w-4" /> New chat</Button>
+          <Button onClick={startNew} className="gradient-primary text-primary-foreground"><Plus className="mr-1 h-4 w-4" /> New chat</Button>
           <div className="mt-4 text-xs uppercase tracking-wider text-muted-foreground">History</div>
           <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
-            {history.map((h) => (
-              <button key={h.title} className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5">
-                <div className="truncate">{h.title}</div>
-                <div className="text-xs text-muted-foreground">{h.when}</div>
-              </button>
+            {threads.map((h) => (
+              <div key={h.id} className={`group flex items-center rounded-xl ${h.id === active.id ? "bg-white/5" : ""}`}>
+                <button onClick={()=>setActiveId(h.id)} className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5">
+                  <div className="truncate">{h.title}</div>
+                  <div className="text-xs text-muted-foreground">{relative(h.updatedAt)}</div>
+                </button>
+                <button onClick={()=>removeThread(h.id)} className="mr-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))}
           </div>
         </Card>
 
-        {/* Main */}
         <Card className="glass flex flex-col overflow-hidden">
           <div className="flex items-center gap-3 border-b border-border/50 p-4">
             <div className="grid h-10 w-10 place-items-center rounded-xl gradient-primary glow"><Bot className="h-5 w-5 text-white" /></div>
@@ -73,10 +129,10 @@ function Chat() {
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-6">
-            {msgs.map((m, i) => (
+            {active.messages.map((m, i) => (
               <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : ""}`}>
                 {m.role === "ai" && <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg gradient-primary"><Bot className="h-4 w-4 text-white" /></div>}
-                <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "gradient-primary text-primary-foreground" : "glass"}`}>
+                <div className={`max-w-[75%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "gradient-primary text-primary-foreground" : "glass"}`}>
                   {m.text}
                 </div>
                 {m.role === "user" && <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary"><UserIcon className="h-4 w-4" /></div>}
@@ -96,7 +152,7 @@ function Chat() {
             )}
           </div>
 
-          {msgs.length <= 1 && (
+          {active.messages.length <= 1 && (
             <div className="px-6 pb-2">
               <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Suggested</div>
               <div className="flex flex-wrap gap-2">
@@ -111,7 +167,7 @@ function Chat() {
             <div className="glass flex items-center gap-2 rounded-2xl p-2">
               <Button variant="ghost" size="icon" className="shrink-0"><Paperclip className="h-4 w-4" /></Button>
               <Input value={input} onChange={(e)=>setInput(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&send()}
-                placeholder="Ask anything… (Markdown & code blocks supported)" className="border-0 bg-transparent focus-visible:ring-0" />
+                placeholder="Ask anything…" className="border-0 bg-transparent focus-visible:ring-0" />
               <Button variant="ghost" size="icon" className="shrink-0"><Mic className="h-4 w-4" /></Button>
               <Button size="icon" onClick={()=>send()} className="shrink-0 gradient-primary text-primary-foreground"><Send className="h-4 w-4" /></Button>
             </div>
